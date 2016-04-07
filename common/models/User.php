@@ -5,7 +5,9 @@ use Yii;
 use yii\base\NotSupportedException;
 use yii\behaviors\TimestampBehavior;
 use yii\db\ActiveRecord;
+use yii\db\Expression;
 use yii\web\IdentityInterface;
+use yii\helpers\Security;
 
 /**
  * User model
@@ -16,22 +18,23 @@ use yii\web\IdentityInterface;
  * @property string $password_reset_token
  * @property string $email
  * @property string $auth_key
- * @property integer $status
+ * @property integer $rol_id
+ * @property integer $estado_id
+ * @property integer $tipo_usuario_id
  * @property integer $created_at
  * @property integer $updated_at
  * @property string $password write-only password
  */
 class User extends ActiveRecord implements IdentityInterface
 {
-    const STATUS_DELETED = 0;
-    const STATUS_ACTIVE = 10;
+    const ESTADO_ACTIVO = 1;
 
     /**
      * @inheritdoc
      */
     public static function tableName()
     {
-        return '{{%user}}';
+        return 'user';
     }
 
     /**
@@ -40,7 +43,15 @@ class User extends ActiveRecord implements IdentityInterface
     public function behaviors()
     {
         return [
-            TimestampBehavior::className(),
+            'timestamp' => [
+                'class' => 'yii\behaviors\TimestampBehavior',
+                'attributes' => [
+                ActiveRecord::EVENT_BEFORE_INSERT => ['created_at', 'updated_at'],
+                ActiveRecord::EVENT_BEFORE_UPDATE => ['updated_at'],
+
+               ],
+               'value' => new Expression('NOW()'),
+            ],
         ];
     }
 
@@ -50,17 +61,32 @@ class User extends ActiveRecord implements IdentityInterface
     public function rules()
     {
         return [
-            ['status', 'default', 'value' => self::STATUS_ACTIVE],
-            ['status', 'in', 'range' => [self::STATUS_ACTIVE, self::STATUS_DELETED]],
+            ['estado_id', 'default', 'value' => self::ESTADO_ACTIVO],
+            ['rol_id', 'default', 'value' => 1],
+            ['tipo_usuario_id', 'default', 'value' => 1],
+            ['username', 'filter', 'filter' => 'trim'],
+            ['username', 'required'],
+            ['username', 'unique'],
+            ['username', 'string', 'min' => 2, 'max' => 255],
+            ['email', 'filter', 'filter' => 'trim'],
+            ['email', 'required'],
+            ['email', 'email'],
+            ['username', 'unique'],
         ];
     }
 
+    public function attributesLabeles()
+    {
+        return [
+                    /*aca van las otras etiquetas de atributo */
+        ];
+    }
     /**
      * @inheritdoc
      */
     public static function findIdentity($id)
     {
-        return static::findOne(['id' => $id, 'status' => self::STATUS_ACTIVE]);
+        return static::findOne(['id' => $id, 'estado_id' => self::ESTADO_ACTIVO]);
     }
 
     /**
@@ -79,7 +105,7 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findByUsername($username)
     {
-        return static::findOne(['username' => $username, 'status' => self::STATUS_ACTIVE]);
+        return static::findOne(['username' => $username, 'estado_id' => self::ESTADO_ACTIVO]);
     }
 
     /**
@@ -96,7 +122,7 @@ class User extends ActiveRecord implements IdentityInterface
 
         return static::findOne([
             'password_reset_token' => $token,
-            'status' => self::STATUS_ACTIVE,
+            'estado_id' => self::ESTADO_ACTIVO,
         ]);
     }
 
@@ -111,9 +137,9 @@ class User extends ActiveRecord implements IdentityInterface
         if (empty($token)) {
             return false;
         }
-
-        $timestamp = (int) substr($token, strrpos($token, '_') + 1);
         $expire = Yii::$app->params['user.passwordResetTokenExpire'];
+        $parts = explode('_', $token);
+        $timestamp = (int) end($parts);
         return $timestamp + $expire >= time();
     }
 
